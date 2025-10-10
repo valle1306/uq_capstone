@@ -1,0 +1,195 @@
+# Step-by-Step Commands for Amarel Setup
+# Copy and paste these commands one at a time
+
+## ============================================================
+## STEP 1: Upload to Amarel (Run on YOUR LOCAL Windows machine)
+## ============================================================
+
+# Option A: Run the interactive script
+amarel_setup_interactive.bat
+
+# Option B: Manual upload (replace YOUR_NETID with your actual NetID)
+# First, test connection:
+ssh YOUR_NETID@amarel.rutgers.edu
+
+# Then create directories:
+ssh YOUR_NETID@amarel.rutgers.edu "mkdir -p /scratch/YOUR_NETID/uq_capstone/{data/brats,scripts,src,envs,notebooks,runs}"
+
+# Upload files:
+scp -r data\brats YOUR_NETID@amarel.rutgers.edu:/scratch/YOUR_NETID/uq_capstone/data/
+scp scripts\*.py scripts\*.sbatch YOUR_NETID@amarel.rutgers.edu:/scratch/YOUR_NETID/uq_capstone/scripts/
+scp src\*.py YOUR_NETID@amarel.rutgers.edu:/scratch/YOUR_NETID/uq_capstone/src/
+scp envs\conda_env.yml YOUR_NETID@amarel.rutgers.edu:/scratch/YOUR_NETID/uq_capstone/envs/
+scp requirements.txt YOUR_NETID@amarel.rutgers.edu:/scratch/YOUR_NETID/uq_capstone/
+
+
+## ============================================================
+## STEP 2: SSH to Amarel and Setup Environment
+## ============================================================
+
+# SSH to Amarel (enter your password when prompted)
+ssh YOUR_NETID@amarel.rutgers.edu
+
+# Navigate to project directory
+cd /scratch/$USER/uq_capstone
+
+# Check that files are there
+ls -lh
+ls -lh data/brats/
+
+# Load required modules
+module purge
+module load conda
+module load cuda/11.8
+
+# Create conda environment (takes 5-10 minutes)
+conda env create -f envs/conda_env.yml
+
+# Activate environment
+conda activate uq_capstone
+
+# Verify Python and PyTorch
+python --version
+python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+
+
+## ============================================================
+## STEP 3: Validate Data
+## ============================================================
+
+# Validate the uploaded data
+python scripts/validate_brats_data.py --data_root data/brats --n_samples 5
+
+# Check data statistics
+python -c "
+import csv
+for split in ['train', 'val', 'test']:
+    with open(f'data/brats/{split}.csv') as f:
+        n = sum(1 for _ in f) - 1
+        print(f'{split}: {n} samples')
+"
+
+
+## ============================================================
+## STEP 4: Submit Test Job
+## ============================================================
+
+# Check GPU availability
+sinfo -p gpu --format="%20N %10c %10m %25f %10G"
+
+# Create runs directory (if not exists)
+mkdir -p runs
+
+# Submit test job
+sbatch scripts/test_training.sbatch
+
+# Note the job ID (e.g., 12345)
+
+# Check job status
+squeue -u $USER
+
+# Watch output in real-time (replace 12345 with your job ID)
+tail -f runs/test_12345.out
+
+# Check for errors (Ctrl+C to stop watching)
+tail -f runs/test_12345.err
+
+# When job completes, check efficiency
+seff 12345
+
+
+## ============================================================
+## STEP 5: Interactive Session (Optional - for debugging)
+## ============================================================
+
+# Start interactive GPU session
+srun --partition=gpu --gres=gpu:1 --mem=16G --time=01:00:00 --pty bash
+
+# Once in interactive session:
+cd /scratch/$USER/uq_capstone
+module load conda cuda/11.8
+conda activate uq_capstone
+
+# Test data loading manually
+python -c "
+import numpy as np
+data = np.load('data/brats/images/BraTS20_Training_013_slice078.npz')
+print('Keys:', list(data.keys()))
+print('Image shape:', data['im'].shape)
+print('Image range:', data['im'].min(), data['im'].max())
+"
+
+# Exit interactive session
+exit
+
+
+## ============================================================
+## USEFUL COMMANDS FOR MONITORING
+## ============================================================
+
+# List your jobs
+squeue -u $USER
+
+# Cancel a job
+scancel JOB_ID
+
+# View completed job info
+sacct -u $USER --format=JobID,JobName,Partition,State,Time,Start,End
+
+# Check disk usage
+du -sh /scratch/$USER/uq_capstone/*
+
+# View job output after completion
+cat runs/test_12345.out
+
+# Count files
+find data/brats/images -name "*.npz" | wc -l
+find data/brats/masks -name "*.npz" | wc -l
+
+
+## ============================================================
+## TROUBLESHOOTING
+## ============================================================
+
+# If conda environment fails to create:
+conda env remove -n uq_capstone
+conda clean --all
+conda env create -f envs/conda_env.yml
+
+# If module not found:
+module avail
+module spider conda
+
+# If CUDA not available:
+module load cuda/11.8
+python -c "import torch; print(torch.version.cuda)"
+
+# If job fails immediately:
+cat runs/test_JOBID.err
+scontrol show job JOBID
+
+# Check available GPU nodes:
+sinfo -p gpu -N -o "%N %C %O %m %G"
+
+
+## ============================================================
+## QUICK REFERENCE
+## ============================================================
+
+# Always do this when you log in:
+cd /scratch/$USER/uq_capstone
+module load conda cuda/11.8
+conda activate uq_capstone
+
+# Submit job:
+sbatch scripts/test_training.sbatch
+
+# Check status:
+squeue -u $USER
+
+# Watch output:
+tail -f runs/test_*.out
+
+# Cancel job:
+scancel JOB_ID

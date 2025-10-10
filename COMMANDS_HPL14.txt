@@ -1,0 +1,141 @@
+# Manual Commands for hpl14 - Amarel Setup
+
+## ============================================================
+## STEP 1: Upload Files (Run on Windows PowerShell)
+## ============================================================
+
+# Test SSH connection first
+ssh hpl14@amarel.rutgers.edu
+
+# Create remote directories
+ssh hpl14@amarel.rutgers.edu "mkdir -p /scratch/hpl14/uq_capstone/{data/brats,scripts,src,envs,notebooks,runs}"
+
+# Upload files (run each command separately)
+scp -r data\brats hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/data/
+scp scripts\*.py hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/scripts/
+scp scripts\*.sbatch hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/scripts/
+scp src\*.py hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/src/
+scp envs\conda_env.yml hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/envs/
+scp requirements.txt hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/
+
+
+## ============================================================
+## STEP 2: SSH to Amarel and Setup Environment
+## ============================================================
+
+# Connect to Amarel
+ssh hpl14@amarel.rutgers.edu
+
+# Navigate to project
+cd /scratch/hpl14/uq_capstone
+
+# Verify files uploaded
+ls -lh
+ls data/brats/
+ls data/brats/images/ | wc -l    # Should show 528
+ls data/brats/masks/ | wc -l     # Should show 528
+
+# Load modules
+module purge
+module load conda
+module load cuda/11.8
+
+# Create conda environment (takes 5-10 minutes)
+conda env create -f envs/conda_env.yml
+
+# Activate environment
+conda activate uq_capstone
+
+# Verify Python and PyTorch
+python --version
+python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+
+
+## ============================================================
+## STEP 3: Validate Data
+## ============================================================
+
+python scripts/validate_brats_data.py --data_root data/brats --n_samples 5
+
+# Check CSV files
+head data/brats/train.csv
+wc -l data/brats/*.csv
+
+
+## ============================================================
+## STEP 4: Submit Test Job
+## ============================================================
+
+# Check GPU availability
+sinfo -p gpu
+
+# Create runs directory
+mkdir -p runs
+
+# Submit test job
+sbatch scripts/test_training.sbatch
+
+# Note the job ID (e.g., 12345)
+
+# Check job status
+squeue -u hpl14
+
+# Watch output in real-time (replace JOBID with actual number)
+tail -f runs/test_JOBID.out
+
+# Check for errors (Ctrl+C to stop watching)
+tail -f runs/test_JOBID.err
+
+# When job completes
+seff JOBID
+
+
+## ============================================================
+## USEFUL COMMANDS
+## ============================================================
+
+# Always run when you log in:
+cd /scratch/hpl14/uq_capstone
+module load conda cuda/11.8
+conda activate uq_capstone
+
+# List your jobs:
+squeue -u hpl14
+
+# Cancel a job:
+scancel JOBID
+
+# View all your jobs (including completed):
+sacct -u hpl14
+
+# Check disk usage:
+du -sh /scratch/hpl14/uq_capstone/*
+
+# Interactive GPU session (for debugging):
+srun --partition=gpu --gres=gpu:1 --mem=16G --time=01:00:00 --pty bash
+
+
+## ============================================================
+## QUICK TEST (Interactive)
+## ============================================================
+
+# Start interactive session
+srun --partition=gpu --gres=gpu:1 --mem=16G --time=01:00:00 --pty bash
+
+# Once in session:
+cd /scratch/hpl14/uq_capstone
+module load conda cuda/11.8
+conda activate uq_capstone
+
+# Test data loading
+python -c "
+import numpy as np
+data = np.load('data/brats/images/BraTS20_Training_013_slice078.npz')
+print('Keys:', list(data.keys()))
+print('Image shape:', data['im'].shape)
+print('Image range:', [data['im'].min(), data['im'].max()])
+"
+
+# Exit
+exit

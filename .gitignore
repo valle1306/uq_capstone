@@ -1,0 +1,41 @@
+# Ignore data and outputs
+data/
+data/*
+*.npz
+runs/
+logs/
+
+# BraTS datasets (large medical imaging data)
+BraTS2020_TrainingData/
+BraTS2020_ValidationData/
+BraTS*/
+*.tar.gz
+*.nii.gz
+
+# Model checkpoints and outputs (can be very large)
+*.pth
+*.ckpt
+*.safetensors
+*.h5
+
+# Evaluation outputs
+*.out
+eval_*.out
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Jupyter
+.ipynb_checkpoints
+
+# Environments
+envs/
+*.yml
+*.yaml
+
+# VSCode
+.vscode/
+__pycache__/
+.venv/
