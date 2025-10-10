@@ -21,7 +21,6 @@ This repository implements and evaluates **4 uncertainty quantification (UQ) met
 | **MC Dropout** | 0.7403 | 0.9663 | 0.0011 | 🥉 3rd |
 | **Baseline** | 0.7401 | 0.9673 | N/A | 4th |
 
-- **SWAG Fix**: Achieved 427% improvement (Dice: 0.14 → 0.74) by fixing unbounded variance bug
 - **Evaluation**: 80 test samples from BraTS2020 dataset
 - **Platform**: Rutgers Amarel HPC with NVIDIA GPUs
 
