@@ -25,7 +25,6 @@ class SWAG(nn.Module):
         base_model: Base neural network model
         max_num_models: Maximum number of model snapshots to store (K parameter)
         var_clamp: Minimum variance for numerical stability
-        max_var: Maximum variance cap to prevent extreme weight perturbations
     """
     
     def __init__(self, base_model: nn.Module, max_num_models: int = 20, var_clamp: float = 1e-30, max_var: float = 100.0):
@@ -107,7 +106,6 @@ class SWAG(nn.Module):
             raise ValueError("No models collected yet. Call collect_model() first.")
         
         # Compute diagonal variance: sigma^2 = E[w^2] - E[w]^2
-        # FIX: Clamp variance on both sides to prevent extreme values
         var = torch.clamp(self.sq_mean - self.mean ** 2, self.var_clamp, self.max_var)
         
         # Sample from standard normal
@@ -121,11 +119,9 @@ class SWAG(nn.Module):
             # Stack deviations into matrix D: [num_models, num_params]
             D = torch.stack(self.cov_mat_sqrt, dim=0)
             
-            # FIX: Use actual number of collected models instead of max_num_models
-            K = len(self.cov_mat_sqrt)
-            
             # Sample from low-rank: (1/sqrt(2(K-1))) * D^T * z2
-            z2 = torch.randn(K, device=self.mean.device)
+            z2 = torch.randn(len(self.cov_mat_sqrt), device=self.mean.device)
+            K = len(self.cov_mat_sqrt)
             low_rank_sample = (1.0 / np.sqrt(2 * (K - 1))) * torch.matmul(D.T, z2)
             
             w_sample += scale * low_rank_sample
@@ -162,18 +158,15 @@ class SWAG(nn.Module):
         self.base_model.eval()
         predictions = []
         
-        device = x.device
-        
         with torch.no_grad():
             for _ in range(n_samples):
                 # Sample model from posterior
                 sampled_model = self.sample(scale=scale)
-                sampled_model.to(device)
                 sampled_model.eval()
+                sampled_model.to(x.device)
                 
                 # Make prediction
                 pred = torch.sigmoid(sampled_model(x))
-                # FIX: Keep predictions on same device for numerical stability
                 predictions.append(pred)
         
         # Stack predictions: [n_samples, B, num_classes, H, W]
