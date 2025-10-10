@@ -224,10 +224,4 @@ This project is for academic research purposes.
 
 ## 👥 Authors
 
-- Capstone Project 2025
-- Rutgers University
-- Amarel HPC Platform
-
----
-
-**Status**: ✅ All 4 UQ methods working | 🚀 Ready for analysis phase
+- Phan Nguyen Huong Le; Advisor: Gemma Moran
