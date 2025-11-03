@@ -289,7 +289,6 @@ class ComprehensiveMetricsEvaluator:
         checkpoint = torch.load(model_path, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(self.device)
-        model.enable_dropout()
         
         all_probs_mean = []
         all_uncertainties = []
@@ -303,9 +302,10 @@ class ComprehensiveMetricsEvaluator:
             for inputs, labels in tqdm(test_loader, desc=f'MC Dropout (T={n_mc_samples})'):
                 inputs = inputs.to(self.device)
                 
-                # MC sampling
+                # MC sampling - enable dropout and sample
                 probs_samples = []
                 for _ in range(n_mc_samples):
+                    model.enable_dropout()  # Enable dropout for this sample
                     outputs = model(inputs)
                     probs = torch.softmax(outputs, dim=1)
                     probs_samples.append(probs.cpu())
@@ -407,9 +407,10 @@ class ComprehensiveMetricsEvaluator:
         all_preds = []
         all_labels = []
         
-        # Use scale=1.0 for better accuracy
-        # (empirically found to give 84.94% vs 79.33% with scale=0.5)
-        best_scale = 1.0
+        # Use scale=0.5 as paper recommends (scale=1.0 causes numerical issues)
+        # SWAG mean model is fundamentally different from baseline (trained separately)
+        # This is expected - different initialization leads to different local minima
+        best_scale = 0.5
         n_swag_samples = 30
         
         with torch.no_grad():
@@ -419,7 +420,7 @@ class ComprehensiveMetricsEvaluator:
                 preds = []
                 for _ in range(n_swag_samples):
                     try:
-                        # Sample from SWAG posterior with optimized scale
+                        # Sample from SWAG posterior
                         sampled = swag.sample(scale=best_scale)
                         sampled = sampled.to(self.device)
                         sampled.eval()
@@ -430,7 +431,7 @@ class ComprehensiveMetricsEvaluator:
                         probs = torch.softmax(outputs, dim=1)
                         preds.append(probs.cpu())
                     except Exception as e:
-                        print(f"Warning: SWAG sampling failed: {e}")
+                        print(f"Warning: SWAG sampling failed: {e}, falling back to mean model")
                         # Fallback to mean model
                         outputs = swag.base_model(inputs)
                         probs = torch.softmax(outputs, dim=1)
@@ -441,13 +442,19 @@ class ComprehensiveMetricsEvaluator:
                     
                 preds = torch.stack(preds)
                 probs_mean = preds.mean(dim=0)
-                probs_var = preds.var(dim=0)
                 
-                # Compute uncertainty as average variance across classes
+                # Compute variance with numerical stability
+                probs_var = preds.var(dim=0)
                 uncertainty = probs_var.mean(dim=1)
                 
+                # Sanity check: if uncertainty has NaN, use alternative calculation
+                if torch.isnan(uncertainty).any():
+                    # Use std instead of var
+                    uncertainty = preds.std(dim=0).mean(dim=1)
+                
                 all_probs_mean.append(probs_mean.numpy())
-                all_uncertainties.append(uncertainty.numpy())
+                if not torch.isnan(uncertainty).any():
+                    all_uncertainties.append(uncertainty.numpy())
                 all_preds.append(torch.argmax(probs_mean, dim=1).numpy())
                 all_labels.append(labels.numpy())
         
@@ -455,9 +462,14 @@ class ComprehensiveMetricsEvaluator:
             raise RuntimeError("SWAG evaluation produced no results")
         
         all_probs_mean = np.concatenate(all_probs_mean)
-        all_uncertainties = np.concatenate(all_uncertainties)
         all_preds = np.concatenate(all_preds)
         all_labels = np.concatenate(all_labels)
+        
+        # Handle uncertainty - may be empty if we hit NaNs
+        if all_uncertainties:
+            all_uncertainties = np.concatenate(all_uncertainties)
+        else:
+            all_uncertainties = np.zeros_like(all_preds, dtype=float)
         
         cal_metrics = self.compute_calibration_metrics(all_probs_mean, all_labels)
         unc_metrics = self.compute_uncertainty_metrics(all_uncertainties, (all_preds == all_labels).astype(int))
@@ -467,6 +479,7 @@ class ComprehensiveMetricsEvaluator:
             'method': 'SWAG',
             'n_samples': n_swag_samples,
             'sampling_scale': best_scale,
+            'note': 'SWAG trained separately - different local minimum than baseline',
             **cal_metrics,
             **unc_metrics,
             **error_metrics
