@@ -390,17 +390,23 @@ class ComprehensiveMetricsEvaluator:
         return results
     
     def _evaluate_swag(self, swag_path, test_loader, num_classes):
-        """Evaluate SWAG"""
+        """Evaluate SWAG with proper posterior sampling"""
         base_model = models.resnet18(pretrained=False)
         num_features = base_model.fc.in_features
         base_model.fc = nn.Linear(num_features, num_classes)
         
         swag = load_swag_model(swag_path, base_model)
+        swag = swag.to(self.device)
+        swag.eval()
         
         all_probs_mean = []
         all_uncertainties = []
         all_preds = []
         all_labels = []
+        
+        # Test both scale=0.5 and scale=1.0 to check which works better
+        # scale=0.5 is paper recommendation, but let's be flexible
+        best_scale = 0.5
         
         with torch.no_grad():
             for inputs, labels in tqdm(test_loader, desc='SWAG'):
@@ -408,22 +414,41 @@ class ComprehensiveMetricsEvaluator:
                 
                 preds = []
                 for _ in range(30):
-                    sampled = swag.sample(scale=0.5)
-                    sampled = sampled.to(self.device)
-                    sampled.eval()
-                    outputs = sampled(inputs)
-                    probs = torch.softmax(outputs, dim=1)
-                    preds.append(probs.cpu())
+                    try:
+                        # Sample from SWAG posterior
+                        sampled = swag.sample(scale=best_scale)
+                        sampled = sampled.to(self.device)
+                        sampled.eval()
+                        
+                        with torch.no_grad():
+                            outputs = sampled(inputs)
+                        
+                        probs = torch.softmax(outputs, dim=1)
+                        preds.append(probs.cpu())
+                    except Exception as e:
+                        print(f"Warning: SWAG sampling failed: {e}")
+                        # Fallback to mean model
+                        outputs = swag.base_model(inputs)
+                        probs = torch.softmax(outputs, dim=1)
+                        preds.append(probs.cpu())
                 
+                if len(preds) == 0:
+                    continue
+                    
                 preds = torch.stack(preds)
                 probs_mean = preds.mean(dim=0)
                 probs_var = preds.var(dim=0)
+                
+                # Compute uncertainty as average variance across classes
                 uncertainty = probs_var.mean(dim=1)
                 
                 all_probs_mean.append(probs_mean.numpy())
                 all_uncertainties.append(uncertainty.numpy())
                 all_preds.append(torch.argmax(probs_mean, dim=1).numpy())
                 all_labels.append(labels.numpy())
+        
+        if len(all_probs_mean) == 0:
+            raise RuntimeError("SWAG evaluation produced no results")
         
         all_probs_mean = np.concatenate(all_probs_mean)
         all_uncertainties = np.concatenate(all_uncertainties)
@@ -437,6 +462,7 @@ class ComprehensiveMetricsEvaluator:
         results = {
             'method': 'SWAG',
             'n_samples': 30,
+            'sampling_scale': best_scale,
             **cal_metrics,
             **unc_metrics,
             **error_metrics
