@@ -237,7 +237,8 @@ class ComprehensiveMetricsEvaluator:
         model = models.resnet18(pretrained=False)
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, num_classes)
-        checkpoint = torch.load(model_path, map_location=self.device)
+        # Load to CPU first, then move to device to avoid CUDA mismatch
+        checkpoint = torch.load(model_path, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(self.device)
         model.eval()
@@ -284,7 +285,8 @@ class ComprehensiveMetricsEvaluator:
         
         base_model = models.resnet18(pretrained=False)
         model = ResNetWithDropout(base_model, num_classes, dropout_rate=0.3)
-        checkpoint = torch.load(model_path, map_location=self.device)
+        # Load to CPU first, then move to device to avoid CUDA mismatch
+        checkpoint = torch.load(model_path, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(self.device)
         model.enable_dropout()
