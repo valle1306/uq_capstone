@@ -136,8 +136,12 @@ def main():
     
     # Load baseline checkpoint
     print(f"\nLoading baseline from {args.baseline_path}")
-    base_model = models.resnet18(pretrained=False)
     baseline_checkpoint = torch.load(args.baseline_path, map_location='cpu')
+    
+    # Create base model with correct number of classes
+    base_model = models.resnet18(pretrained=False)
+    num_features = base_model.fc.in_features
+    base_model.fc = nn.Linear(num_features, num_classes)
     base_model.load_state_dict(baseline_checkpoint['model_state_dict'])
     
     # Create MC Dropout model with baseline weights

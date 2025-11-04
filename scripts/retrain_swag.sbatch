@@ -23,8 +23,7 @@ python src/retrain_swag.py \
     --epochs 50 \
     --batch_size 32 \
     --lr 1e-4 \
-    --snapshot_start 30 \
-    --max_snapshots 20 \
+    --swag_start 30 \
     --device cuda \
     --output_dir runs/classification/swag_classification
 
