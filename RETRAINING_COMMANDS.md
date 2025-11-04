@@ -70,31 +70,54 @@ tail -f logs/retrain_swag_<job_id>.out
 ls -lh runs/classification/mc_dropout/best_model.pth
 ls -lh runs/classification/swag_classification/swag_model.pth
 
-# Run comprehensive evaluation
+# Run comprehensive evaluation + visualizations ON AMAREL
 cd /scratch/$USER/uq_capstone
-sbatch scripts/evaluate_classification_comprehensive.sbatch
+sbatch scripts/eval_and_visualize_on_amarel.sbatch
 
-# Wait for evaluation to complete, then copy results
+# Monitor evaluation job
+squeue -u hpl14
+
+# Check progress (while running)
+tail -f logs/eval_visualize_comprehensive_<job_id>.out
+
+# View results when done
+cat runs/classification/metrics/comprehensive_metrics.json | python -m json.tool | head -100
 ```
 
-**On Windows (PowerShell):**
+### 5️⃣ Review Results on Amarel (Before Pulling)
+
+```bash
+# View detailed results
+cat runs/classification/metrics/EVALUATION_REPORT.txt
+
+# Check accuracies (should be ~90% for MC Dropout and SWAG)
+python -c "import json; r = json.load(open('runs/classification/metrics/comprehensive_metrics.json')); print(f'MC Dropout Acc: {r[\"mc_dropout\"][\"accuracy\"]:.2%}'); print(f'SWAG Acc: {r[\"swag\"][\"accuracy\"]:.2%}')"
+
+# List all generated files
+ls -lh runs/classification/metrics/
+```
+
+### 6️⃣ If Results Look Good, Pull to Windows (PowerShell)
+
 ```powershell
-# Pull new models and results
+# Pull all results and visualizations
 scp -r hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/runs/classification/metrics ./runs/
 
-# Pull individual models if needed
-scp hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/runs/classification/mc_dropout/best_model.pth ./runs/classification/mc_dropout/
-scp hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/runs/classification/swag_classification/swag_model.pth ./runs/classification/swag_classification/
+# Or pull specific files
+scp hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/runs/classification/metrics/comprehensive_metrics.json ./runs/classification/metrics/
+scp hpl14@amarel.rutgers.edu:/scratch/hpl14/uq_capstone/runs/classification/metrics/*.png ./runs/classification/metrics/
 ```
 
-### 5️⃣ Re-run Metrics Locally (Windows PowerShell)
+### 7️⃣ Local Analysis (Windows PowerShell - Optional)
 
 ```powershell
 cd c:\Users\lpnhu\Downloads\uq_capstone
-python src/comprehensive_metrics.py
 
-# Generate visualizations
-python analysis/visualize_metrics.py
+# View results locally
+python -c "import json; r = json.load(open('runs/classification/metrics/comprehensive_metrics.json')); print(json.dumps(r, indent=2))" | head -100
+
+# Generate additional analysis
+python analysis/generate_uq_report.py
 ```
 
 ## Key Parameters
