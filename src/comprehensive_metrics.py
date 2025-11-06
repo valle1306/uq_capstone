@@ -228,7 +228,8 @@ class ComprehensiveMetricsEvaluator:
         baseline_path = methods_config['Baseline']['path']
         baseline_model = self._load_baseline_model(baseline_path, num_classes)
         crc_results = self._evaluate_conformal(baseline_model, cal_loader, test_loader, num_classes)
-        all_metrics['Conformal Risk Control'] = crc_results
+        # Merge CRC results dict into all_metrics (not a list)
+        all_metrics.update(crc_results)
         
         return all_metrics
     
@@ -283,8 +284,20 @@ class ComprehensiveMetricsEvaluator:
         """Evaluate MC Dropout"""
         from train_classifier_mc_dropout import ResNetWithDropout
         
+        # Read config to get exact dropout_rate used during training
+        model_dir = Path(model_path).parent
+        config_path = model_dir / 'config.json'
+        dropout_rate = 0.2  # default
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                dropout_rate = config.get('dropout_rate', 0.2)
+                print(f"  Loaded dropout_rate={dropout_rate} from config")
+        else:
+            print(f"  Warning: config.json not found, using default dropout_rate={dropout_rate}")
+        
         base_model = models.resnet18(pretrained=False)
-        model = ResNetWithDropout(base_model, num_classes, dropout_rate=0.3)
+        model = ResNetWithDropout(base_model, num_classes, dropout_rate=dropout_rate)
         # Load to CPU first, then move to device to avoid CUDA mismatch
         checkpoint = torch.load(model_path, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -490,7 +503,8 @@ class ComprehensiveMetricsEvaluator:
     
     def _evaluate_conformal(self, model, cal_loader, test_loader, num_classes):
         """Evaluate Conformal Risk Control"""
-        results_list = []
+        # Return dict (not list) so summary table can access metrics properly
+        results_dict = {}
         
         loss_configs = [
             ('FNR Control (alpha=0.05)', false_negative_rate_loss, 0.05),
@@ -513,12 +527,18 @@ class ComprehensiveMetricsEvaluator:
                 'coverage': metrics['coverage'],
                 'avg_set_size': metrics['avg_set_size'],
                 'std_set_size': metrics['std_set_size'],
-                'threshold': metrics['threshold']
+                'threshold': metrics['threshold'],
+                # Add accuracy-like metrics for summary table compatibility
+                'accuracy': (1.0 - metrics['empirical_risk']) * 100.0 if metrics['empirical_risk'] is not None else None,
+                'ece': None,
+                'brier_score': None,
+                'fnr': metrics['empirical_risk'],
+                'mean_uncertainty': None
             }
             
-            results_list.append(results)
+            results_dict[f'CRC - {name}'] = results
         
-        return results_list
+        return results_dict
     
     def _print_metrics(self, metrics):
         """Pretty print metrics"""
@@ -581,15 +601,14 @@ def main():
     # Create summary table
     summary_df = pd.DataFrame([
         {
-            'Method': m.get('method', 'Unknown'),
+            'Method': m.get('method', k),
             'Accuracy (%)': m.get('accuracy', np.nan),
             'ECE': m.get('ece', np.nan),
             'Brier': m.get('brier_score', np.nan),
             'FNR': m.get('fnr', np.nan),
             'Mean Unc': m.get('mean_uncertainty', np.nan)
         }
-        for results in all_metrics.values()
-        for m in (results if isinstance(results, list) else [results])
+        for k, m in all_metrics.items()
     ])
     
     print("\nSummary Table:")
