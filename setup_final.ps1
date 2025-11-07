@@ -63,13 +63,13 @@ Write-Host "`nPushing to GitHub..." -ForegroundColor Green
 git push origin main
 
 Write-Host "`n==========================================" -ForegroundColor Cyan
-Write-Host "ALL DONE!" -ForegroundColor Green
+Write-Host "ALL DONE" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Cyan
 
 Write-Host "`nYour repository is now:" -ForegroundColor Yellow
-Write-Host "  ✓ Downloaded with latest results" -ForegroundColor Green
-Write-Host "  ✓ Reorganized with clean structure" -ForegroundColor Green
-Write-Host "  ✓ Committed and pushed to GitHub" -ForegroundColor Green
+Write-Host "  Downloaded with latest results" -ForegroundColor Green
+Write-Host "  Reorganized with clean structure" -ForegroundColor Green
+Write-Host "  Committed and pushed to GitHub" -ForegroundColor Green
 
 Write-Host "`nNext steps:" -ForegroundColor Yellow
 Write-Host "  - Check results/figures/ for visualizations" -ForegroundColor White
