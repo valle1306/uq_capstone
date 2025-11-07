@@ -54,7 +54,11 @@ for method, data in results.items():
         if isinstance(data, list):
             continue
         methods_ece = method
-        eces.append(data.get('ece', 0))
+        ece_val = data.get('ece', 0)
+        # Handle None values (e.g., from methods without ECE)
+        if ece_val is None:
+            ece_val = 0
+        eces.append(ece_val)
 
 bars = ax2.bar(methods, eces, color=colors[:len(methods)])
 ax2.set_ylabel('ECE (Expected Calibration Error)', fontsize=11, fontweight='bold')
@@ -75,7 +79,9 @@ for method, data in results.items():
         if isinstance(data, list):
             continue
         brier_str = data.get('brier_score', '0')
-        if isinstance(brier_str, str):
+        if brier_str is None:
+            brier = 0
+        elif isinstance(brier_str, str):
             brier = float(brier_str)
         else:
             brier = brier_str
@@ -98,8 +104,15 @@ for method, data in results.items():
     if method != 'Conformal Risk Control':
         if isinstance(data, list):
             continue
-        fprs.append(data.get('fpr', 0))
-        fnrs.append(data.get('fnr', 0))
+        fpr_val = data.get('fpr', 0)
+        fnr_val = data.get('fnr', 0)
+        # Handle None values
+        if fpr_val is None:
+            fpr_val = 0
+        if fnr_val is None:
+            fnr_val = 0
+        fprs.append(fpr_val)
+        fnrs.append(fnr_val)
 
 x_pos = np.arange(len(methods))
 width = 0.35
@@ -119,7 +132,11 @@ for method, data in results.items():
     if method != 'Conformal Risk Control':
         if isinstance(data, list):
             continue
-        aucs.append(data.get('roc_auc', 0))
+        auc_val = data.get('roc_auc', 0)
+        # Handle None values
+        if auc_val is None:
+            auc_val = 0
+        aucs.append(auc_val)
 
 bars = ax5.bar(methods, aucs, color=colors[:len(methods)])
 ax5.set_ylabel('ROC-AUC Score', fontsize=11, fontweight='bold')
@@ -141,8 +158,11 @@ for method, data in results.items():
         if isinstance(data, list):
             continue
         if 'mean_uncertainty' in data:
-            methods_with_unc.append(method)
-            uncs.append(data.get('mean_uncertainty', 0))
+            unc_val = data.get('mean_uncertainty', 0)
+            # Handle None values
+            if unc_val is not None:
+                methods_with_unc.append(method)
+                uncs.append(unc_val)
 
 if uncs:
     bars = ax6.bar(methods_with_unc, uncs, color=colors[:len(methods_with_unc)])
@@ -163,8 +183,11 @@ for method, data in results.items():
         if isinstance(data, list):
             continue
         if 'unc_separation' in data:
-            methods_with_sep.append(method)
-            seps.append(data.get('unc_separation', 0))
+            sep_val = data.get('unc_separation', 0)
+            # Handle None values
+            if sep_val is not None:
+                methods_with_sep.append(method)
+                seps.append(sep_val)
 
 if seps:
     bars = ax7.bar(methods_with_sep, seps, color=colors[:len(methods_with_sep)])
@@ -211,11 +234,21 @@ for method, data in results.items():
     if method != 'Conformal Risk Control':
         if isinstance(data, list):
             continue
+        acc_val = data.get('accuracy', 0)
+        ece_val = data.get('ece', 0)
+        fnr_val = data.get('fnr', 0)
+        # Handle None values
+        if acc_val is None:
+            acc_val = 0
+        if ece_val is None:
+            ece_val = 0
+        if fnr_val is None:
+            fnr_val = 0
         summary_data.append({
             'Method': method,
-            'Acc %': f"{data.get('accuracy', 0):.1f}",
-            'ECE': f"{data.get('ece', 0):.4f}",
-            'FNR': f"{data.get('fnr', 0):.4f}"
+            'Acc %': f"{acc_val:.1f}",
+            'ECE': f"{ece_val:.4f}",
+            'FNR': f"{fnr_val:.4f}"
         })
 
 summary_df = pd.DataFrame(summary_data)
@@ -246,9 +279,13 @@ fig2, axes = plt.subplots(2, 2, figsize=(14, 10))
 ax = axes[0, 0]
 for method, data in results.items():
     if method != 'Conformal Risk Control' and not isinstance(data, list):
-        ax.scatter(data.get('ece', 0), data.get('accuracy', 0), s=200, alpha=0.7)
-        ax.annotate(method, (data.get('ece', 0), data.get('accuracy', 0)), 
-                   fontsize=10, fontweight='bold', ha='center', va='center')
+        ece_val = data.get('ece', 0)
+        acc_val = data.get('accuracy', 0)
+        # Skip if either value is None
+        if ece_val is not None and acc_val is not None:
+            ax.scatter(ece_val, acc_val, s=200, alpha=0.7)
+            ax.annotate(method, (ece_val, acc_val), 
+                       fontsize=10, fontweight='bold', ha='center', va='center')
 ax.set_xlabel('ECE (Calibration Error)', fontsize=11, fontweight='bold')
 ax.set_ylabel('Accuracy (%)', fontsize=11, fontweight='bold')
 ax.set_title('Accuracy vs Calibration Tradeoff', fontsize=12, fontweight='bold')
@@ -258,9 +295,13 @@ ax.grid(True, alpha=0.3)
 ax = axes[0, 1]
 for method, data in results.items():
     if method != 'Conformal Risk Control' and not isinstance(data, list):
-        ax.scatter(data.get('fpr', 0), data.get('fnr', 0), s=200, alpha=0.7)
-        ax.annotate(method, (data.get('fpr', 0), data.get('fnr', 0)), 
-                   fontsize=10, fontweight='bold', ha='center', va='center')
+        fpr_val = data.get('fpr', 0)
+        fnr_val = data.get('fnr', 0)
+        # Skip if either value is None
+        if fpr_val is not None and fnr_val is not None:
+            ax.scatter(fpr_val, fnr_val, s=200, alpha=0.7)
+            ax.annotate(method, (fpr_val, fnr_val), 
+                       fontsize=10, fontweight='bold', ha='center', va='center')
 ax.set_xlabel('False Positive Rate', fontsize=11, fontweight='bold')
 ax.set_ylabel('False Negative Rate', fontsize=11, fontweight='bold')
 ax.set_title('Error Rate Comparison', fontsize=12, fontweight='bold')
@@ -271,10 +312,19 @@ ax = axes[1, 0]
 for method, data in results.items():
     if method != 'Conformal Risk Control' and not isinstance(data, list):
         brier_str = data.get('brier_score', '0')
-        brier = float(brier_str) if isinstance(brier_str, str) else brier_str
-        ax.scatter(brier, data.get('roc_auc', 0), s=200, alpha=0.7)
-        ax.annotate(method, (brier, data.get('roc_auc', 0)), 
-                   fontsize=10, fontweight='bold', ha='center', va='center')
+        auc_val = data.get('roc_auc', 0)
+        # Handle None values
+        if brier_str is None:
+            brier = 0
+        elif isinstance(brier_str, str):
+            brier = float(brier_str)
+        else:
+            brier = brier_str
+        # Skip if either value is None
+        if brier is not None and auc_val is not None:
+            ax.scatter(brier, auc_val, s=200, alpha=0.7)
+            ax.annotate(method, (brier, auc_val), 
+                       fontsize=10, fontweight='bold', ha='center', va='center')
 ax.set_xlabel('Brier Score (Lower Better)', fontsize=11, fontweight='bold')
 ax.set_ylabel('ROC-AUC Score', fontsize=11, fontweight='bold')
 ax.set_title('Calibration vs Discrimination', fontsize=12, fontweight='bold')
@@ -288,9 +338,13 @@ seps = []
 for method, data in results.items():
     if method != 'Conformal Risk Control' and not isinstance(data, list):
         if 'mean_uncertainty' in data and 'unc_separation' in data:
-            methods_unc.append(method)
-            uncs_mean.append(data.get('mean_uncertainty', 0))
-            seps.append(data.get('unc_separation', 0))
+            unc_val = data.get('mean_uncertainty', 0)
+            sep_val = data.get('unc_separation', 0)
+            # Only add if both values are not None
+            if unc_val is not None and sep_val is not None:
+                methods_unc.append(method)
+                uncs_mean.append(unc_val)
+                seps.append(sep_val)
 
 if methods_unc:
     ax.scatter(uncs_mean, seps, s=200, alpha=0.7)
