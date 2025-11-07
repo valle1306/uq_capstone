@@ -75,4 +75,4 @@ Write-Host "`nNext steps:" -ForegroundColor Yellow
 Write-Host "  - Check results/figures/ for visualizations" -ForegroundColor White
 Write-Host "  - Review results/metrics/metrics_summary.csv" -ForegroundColor White
 Write-Host "  - Read results/final/README.md for analysis" -ForegroundColor White
-Write-Host "  - Prepare your presentation using the figures!" -ForegroundColor White
+Write-Host "  - Prepare your presentation using the figures" -ForegroundColor White
