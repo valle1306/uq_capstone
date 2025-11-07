@@ -280,5 +280,5 @@ Write-Host "    └── final/           (final analysis)" -ForegroundColor Gr
 Write-Host "`nNext steps:" -ForegroundColor Yellow
 Write-Host "  1. Review the changes: git status" -ForegroundColor White
 Write-Host "  2. Stage changes: git add ." -ForegroundColor White
-Write-Host "  3. Commit: git commit -m 'Reorganize repository structure'" -ForegroundColor White
+Write-Host "  3. Commit: git commit -m Reorganize repository structure" -ForegroundColor White
 Write-Host "  4. Push: git push origin main" -ForegroundColor White
