@@ -325,6 +325,7 @@ class ComprehensiveMetricsEvaluator:
         checkpoint = torch.load(model_path, map_location='cpu')
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.to(self.device)
+        model.eval()  # Set to eval mode first (this disables dropout)
         
         all_probs_mean = []
         all_uncertainties = []
@@ -341,10 +342,11 @@ class ComprehensiveMetricsEvaluator:
                 # MC sampling - enable dropout and sample
                 probs_samples = []
                 for _ in range(n_mc_samples):
-                    model.enable_dropout()  # Enable dropout for this sample
+                    model.enable_dropout()  # Re-enable dropout for this forward pass
                     outputs = model(inputs)
                     probs = torch.softmax(outputs, dim=1)
                     probs_samples.append(probs.cpu())
+                    model.eval()  # Disable dropout again after forward pass
                 
                 probs_samples = torch.stack(probs_samples)
                 probs_mean = probs_samples.mean(dim=0)
