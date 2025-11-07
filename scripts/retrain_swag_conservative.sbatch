@@ -25,7 +25,7 @@ cd /scratch/$USER/uq_capstone
 
 # Run training
 python src/retrain_swag_conservative.py \
-    --data_dir data/chest_xray \
+    --dataset chest_xray \
     --output_dir runs/classification/swag_classification \
     --arch resnet18 \
     --epochs 50 \

@@ -97,7 +97,8 @@ def validate(model, loader, criterion, device, desc="Val"):
 
 def main():
     parser = argparse.ArgumentParser(description='SWAG Training (Conservative LR)')
-    parser.add_argument('--data_dir', type=str, required=True)
+    parser.add_argument('--dataset', type=str, default='chest_xray', help='Dataset name')
+    parser.add_argument('--data_dir', type=str, default=None, help='Optional data directory path')
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--arch', type=str, default='resnet18')
     parser.add_argument('--epochs', type=int, default=50)
@@ -118,6 +119,7 @@ def main():
     print("=" * 70)
     print("SWAG Training - CONSERVATIVE Learning Rates")
     print("=" * 70)
+    print(f"Dataset: {args.dataset}")
     print(f"Optimizer: SGD with momentum={args.momentum}")
     print(f"Weight decay (L2): {args.weight_decay}")
     print(f"Initial LR: {args.lr} (conservative for small dataset)")
@@ -131,7 +133,8 @@ def main():
 
     # Data loaders
     train_loader, cal_loader, test_loader, num_classes = get_classification_loaders(
-        args.data_dir,
+        dataset_name=args.dataset,
+        data_dir=args.data_dir,
         batch_size=args.batch_size,
         num_workers=args.num_workers
     )
@@ -243,7 +246,7 @@ def main():
 
     # Save config
     config = {
-        'dataset': os.path.basename(args.data_dir),
+        'dataset': args.dataset,
         'epochs': args.epochs,
         'swag_start': args.swag_start,
         'batch_size': args.batch_size,
