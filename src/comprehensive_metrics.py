@@ -282,8 +282,30 @@ class ComprehensiveMetricsEvaluator:
     
     def _evaluate_mc_dropout(self, model_path, test_loader, num_classes):
         """Evaluate MC Dropout"""
-        # Import from retrain script (not train script) to match the saved model architecture
-        from retrain_mc_dropout import ResNetWithDropout
+        # Define ResNetWithDropout class inline to avoid import path issues
+        class ResNetWithDropout(nn.Module):
+            """ResNet with dropout for MC Dropout"""
+            
+            def __init__(self, base_model, num_classes, dropout_rate=0.2):
+                super().__init__()
+                self.base_model = base_model
+                self.dropout_rate = dropout_rate
+                
+                # Replace final layer with dropout
+                num_features = base_model.fc.in_features
+                self.base_model.fc = nn.Sequential(
+                    nn.Dropout(p=dropout_rate),
+                    nn.Linear(num_features, num_classes)
+                )
+            
+            def forward(self, x):
+                return self.base_model(x)
+            
+            def enable_dropout(self):
+                """Enable dropout during inference for MC sampling"""
+                for m in self.modules():
+                    if isinstance(m, nn.Dropout):
+                        m.train()
         
         # Read config to get exact dropout_rate used during training
         model_dir = Path(model_path).parent
