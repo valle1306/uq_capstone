@@ -5,6 +5,10 @@ data/*
 runs/
 logs/
 
+# Thesis draft (work in progress, too large)
+thesis_draft.md
+*_draft.md
+
 # BraTS datasets (large medical imaging data)
 BraTS2020_TrainingData/
 BraTS2020_ValidationData/
