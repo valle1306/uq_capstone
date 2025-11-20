@@ -35,13 +35,10 @@ python src/train_mc_dropout_sgd.py \
     --epochs 50 \
     --batch_size 32 \
     --num_workers 4 \
-    --lr_init 0.01 \
-    --swa_lr 0.005 \
-    --swa_start 27 \
-    --momentum 0.9 \
-    --wd 1e-4 \
+    --lr 0.01 \
+    --weight_decay 1e-4 \
+    --scheduler cosine \
     --dropout_rate 0.2 \
-    --num_samples 15 \
     --output_dir runs/classification/mc_dropout_sgd \
     --device cuda \
     --seed 1

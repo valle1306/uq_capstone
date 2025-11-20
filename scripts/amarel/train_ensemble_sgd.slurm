@@ -26,23 +26,25 @@ cd /scratch/hpl14/uq_capstone
 # Check GPU
 nvidia-smi
 
-# Run training
-python src/train_ensemble_sgd.py \
-    --dataset chest_xray \
-    --data_dir data/chest_xray \
-    --arch resnet18 \
-    --pretrained \
-    --epochs 50 \
-    --batch_size 32 \
-    --num_workers 4 \
-    --lr_init 0.01 \
-    --swa_lr 0.005 \
-    --swa_start 27 \
-    --momentum 0.9 \
-    --wd 1e-4 \
-    --num_models 5 \
-    --output_dir runs/classification/ensemble_sgd \
-    --device cuda
+# Run training for all 5 ensemble members
+for member_id in {1..5}; do
+    echo "Training ensemble member $member_id..."
+    python src/train_ensemble_sgd.py \
+        --dataset chest_xray \
+        --data_dir data/chest_xray \
+        --arch resnet18 \
+        --pretrained \
+        --epochs 50 \
+        --batch_size 32 \
+        --num_workers 4 \
+        --lr 0.01 \
+        --weight_decay 1e-4 \
+        --scheduler cosine \
+        --member_id $member_id \
+        --output_dir runs/classification/ensemble_sgd \
+        --device cuda \
+        --seed $((42 * member_id))
+done
 
 echo "========================================="
 echo "Training completed at: $(date)"
