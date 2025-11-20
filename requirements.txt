@@ -1,0 +1,9 @@
+torch
+torchvision
+numpy
+scipy
+pillow
+scikit-learn
+matplotlib
+# SWA-Gaussian from GitHub
+git+https://github.com/wjmaddox/swa_gaussian.git#egg=swa_gaussian

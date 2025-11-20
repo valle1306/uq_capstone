@@ -27,168 +27,188 @@ from pathlib import Path
 # Add src to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data_utils_classification import get_data_loaders
+from data_utils_classification import get_classification_loaders
 from swag import SWAG
 from torch.optim.swa_utils import update_bn
 
 
-def build_resnet(arch, num_classes, pretrained=True):
-    """Build ResNet model"""
-    if arch == 'resnet18':
-        model = models.resnet18(pretrained=pretrained)
-        model.fc = nn.Linear(512, num_classes)
-    elif arch == 'resnet34':
-        model = models.resnet34(pretrained=pretrained)
-        model.fc = nn.Linear(512, num_classes)
-    elif arch == 'resnet50':
-        model = models.resnet50(pretrained=pretrained)
-        model.fc = nn.Linear(2048, num_classes)
-    else:
-        raise ValueError(f"Unknown architecture: {arch}")
-    
-    return model
+"""
+Two-stage SWAG retraining script.
+- Stage 1: cyclic learning rate for exploration
+- Stage 2: fixed low LR and snapshot collection
+
+This script is intentionally a runnable skeleton using PyTorch.
+It saves snapshot checkpoints during the collection phase so that
+you can post-process them with `swa_gaussian` utilities or your own tool.
+
+Usage example:
+  python src/retrain_swag_two_stage.py --baseline_path runs/classification/baseline/best_model.pth \
+    --epochs 50 --collection_start 21 --snap_interval 1 --save_dir runs/classification/swag_two_stage
+
+Note: This script will not automatically compute SWAG posterior; it creates snapshots.
+Use `swa_gaussian` or provided postprocessing code to convert snapshots to a SWAG model.
+"""
+
+import argparse
+import os
+from pathlib import Path
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+import torchvision.models as models
 
 
-def train_epoch(model, loader, criterion, optimizer, device):
-    """Train for one epoch"""
+def get_dataloaders(data_dir, batch_size=64, img_size=224):
+    transform = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+    ])
+    # expects ImageFolder layout: train/val/test
+    train_ds = datasets.ImageFolder(os.path.join(data_dir, 'train'), transform=transform)
+    val_ds = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform=transform)
+    test_ds = datasets.ImageFolder(os.path.join(data_dir, 'test'), transform=transform)
+    return DataLoader(train_ds, batch_size=batch_size, shuffle=True), DataLoader(val_ds, batch_size=batch_size), DataLoader(test_ds, batch_size=batch_size)
+
+
+def adjust_learning_rate_cyclic(optimizer, base_lr, max_lr, epoch, cycle_length):
+    # triangular cyclic lr between base_lr and max_lr
+    cycle_pos = (epoch - 1) % cycle_length
+    factor = cycle_pos / max(1, (cycle_length - 1))
+    # triangular: rise then fall
+    lr = base_lr + (max_lr - base_lr) * (1 - abs(2 * factor - 1))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    return lr
+
+
+def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
-    total_loss = 0.0
+    running_loss = 0.0
     correct = 0
     total = 0
-    
-    for images, labels in loader:
-        images, labels = images.to(device), labels.to(device)
-        
+    for x, y in loader:
+        x, y = x.to(device), y.to(device)
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+        out = model(x)
+        loss = criterion(out, y)
         loss.backward()
         optimizer.step()
-        
-        total_loss += loss.item() * images.size(0)
-        _, predicted = outputs.max(1)
-        correct += predicted.eq(labels).sum().item()
-        total += labels.size(0)
-    
-    return total_loss / total, 100.0 * correct / total
+        running_loss += loss.item() * x.size(0)
+        preds = out.argmax(dim=1)
+        correct += (preds == y).sum().item()
+        total += x.size(0)
+    return running_loss / max(1, total), correct / max(1, total)
 
 
-def evaluate(model, loader, criterion, device):
-    """Evaluate model"""
+def eval_model(model, loader, criterion, device):
     model.eval()
-    total_loss = 0.0
+    running_loss = 0.0
     correct = 0
     total = 0
-    
     with torch.no_grad():
-        for images, labels in loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            
-            total_loss += loss.item() * images.size(0)
-            _, predicted = outputs.max(1)
-            correct += predicted.eq(labels).sum().item()
-            total += labels.size(0)
-    
-    return total_loss / total, 100.0 * correct / total
+        for x, y in loader:
+            x, y = x.to(device), y.to(device)
+            out = model(x)
+            loss = criterion(out, y)
+            running_loss += loss.item() * x.size(0)
+            preds = out.argmax(dim=1)
+            correct += (preds == y).sum().item()
+            total += x.size(0)
+    return running_loss / max(1, total), correct / max(1, total)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Two-Stage SWAG Training')
-    parser.add_argument('--dataset', type=str, default='chest_xray',
-                        choices=['chest_xray', 'oct_retinal', 'brain_tumor'],
-                        help='Dataset name')
-    parser.add_argument('--data_path', type=str, default='data',
-                        help='Path to data directory')
-    parser.add_argument('--baseline_path', type=str, required=True,
-                        help='Path to converged baseline model')
-    parser.add_argument('--output_dir', type=str, 
-                        default='runs/classification/swag_two_stage',
-                        help='Output directory')
-    parser.add_argument('--arch', type=str, default='resnet18',
-                        help='Model architecture')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size')
-    parser.add_argument('--epochs', type=int, default=50,
-                        help='Number of epochs for stage 2')
-    parser.add_argument('--collection_start', type=int, default=20,
-                        help='Epoch to start SWAG collection')
-    parser.add_argument('--base_lr', type=float, default=0.0001,
-                        help='Base learning rate for cyclic LR')
-    parser.add_argument('--max_lr', type=float, default=0.001,
-                        help='Max learning rate for cyclic LR')
-    parser.add_argument('--cycle_length', type=int, default=5,
-                        help='Cycle length for cyclic LR')
-    parser.add_argument('--weight_decay', type=float, default=1e-4,
-                        help='Weight decay')
-    parser.add_argument('--swag_lr', type=float, default=0.0001,
-                        help='Learning rate during SWAG collection')
-    parser.add_argument('--num_snapshots', type=int, default=20,
-                        help='Number of SWAG snapshots to collect')
-    parser.add_argument('--device', type=str, default='cuda',
-                        help='Device to use')
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', default='data', help='Dataset directory with train/val/test subfolders')
+    parser.add_argument('--baseline_path', default=None, help='Optional pretrained baseline to load')
+    parser.add_argument('--arch', default='resnet18')
+    parser.add_argument('--epochs', type=int, default=50)
+    parser.add_argument('--collection_start', type=int, default=21)
+    parser.add_argument('--snap_interval', type=int, default=1)
+    parser.add_argument('--base_lr', type=float, default=1e-4)
+    parser.add_argument('--max_lr', type=float, default=1e-3)
+    parser.add_argument('--cycle_length', type=int, default=5)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--save_dir', default='runs/classification/swag_two_stage')
     args = parser.parse_args()
-    
-    # Setup
-    device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    print("=" * 70)
-    print("Two-Stage SWAG Training")
-    print("=" * 70)
-    print(f"Strategy: Load baseline → Cyclic LR exploration → SWAG collection")
-    print(f"This prevents 'overfit before collection' problem!")
-    print()
-    print(f"Stage 1: Load converged baseline from {args.baseline_path}")
-    print(f"Stage 2: Train {args.epochs} epochs with cyclic LR")
-    print(f"  - Epochs 1-{args.collection_start}: Exploration with cyclic LR")
-    print(f"  - Epochs {args.collection_start+1}-{args.epochs}: SWAG collection")
-    print(f"  - Cyclic LR: {args.base_lr} ↔ {args.max_lr} (cycle={args.cycle_length})")
-    print(f"  - SWAG LR: {args.swag_lr}")
-    print("=" * 70)
-    print()
-    
-    # Load data
-    print("Loading dataset...")
-    train_loader, cal_loader, test_loader = get_data_loaders(
-        args.dataset,
-        args.data_path,
-        batch_size=args.batch_size,
-        num_workers=4
-    )
-    
-    dataset_sizes = {
-        'train': len(train_loader.dataset),
-        'cal': len(cal_loader.dataset),
-        'test': len(test_loader.dataset)
-    }
-    
-    print(f"{args.dataset.upper()} dataset loaded")
-    print(f"Train: {dataset_sizes['train']}, Cal: {dataset_sizes['cal']}, Test: {dataset_sizes['test']}")
-    print()
-    
-    # Build model
-    num_classes = 2 if args.dataset == 'chest_xray' else 4
-    base_model = build_resnet(args.arch, num_classes, pretrained=False)
-    
-    # Load baseline weights
-    print("=" * 70)
-    print("Stage 1: Loading Converged Baseline Model")
-    print("=" * 70)
-    
-    if not os.path.exists(args.baseline_path):
-        raise FileNotFoundError(f"Baseline model not found: {args.baseline_path}")
-    
-    checkpoint = torch.load(args.baseline_path, map_location='cpu')
-    if 'state_dict' in checkpoint:
-        base_model.load_state_dict(checkpoint['state_dict'])
-        baseline_acc = checkpoint.get('test_acc', 'Unknown')
-        print(f"✓ Loaded baseline from checkpoint (Test Acc: {baseline_acc})")
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    Path(args.save_dir).mkdir(parents=True, exist_ok=True)
+
+    # model
+    if args.arch == 'resnet18':
+        model = models.resnet18(pretrained=False)
+        # Keep flexibility: do not hardcode num classes; detect from dataset
     else:
-        base_model.load_state_dict(checkpoint)
-        print(f"✓ Loaded baseline weights")
+        model = models.resnet18(pretrained=False)
+
+    model = model.to(device)
+
+    # If baseline provided, attempt to load weights
+    if args.baseline_path is not None and os.path.exists(args.baseline_path):
+        try:
+            print(f"Loading baseline from {args.baseline_path}")
+            state = torch.load(args.baseline_path, map_location='cpu')
+            try:
+                model.load_state_dict(state)
+            except Exception:
+                if isinstance(state, dict) and 'state_dict' in state:
+                    model.load_state_dict(state['state_dict'])
+                else:
+                    print("Baseline state incompatible; continuing without strict load")
+        except Exception as e:
+            print(f"Warning: failed to load baseline: {e}")
+
+    # Update classifier head to match dataset if possible
+    # Attempt to detect number of classes from data folder
+    try:
+        train_root = os.path.join(args.data_dir, 'train')
+        if os.path.isdir(train_root):
+            classes = [d for d in os.listdir(train_root) if os.path.isdir(os.path.join(train_root, d))]
+            n_classes = max(2, len(classes))
+            in_features = model.fc.in_features
+            model.fc = nn.Linear(in_features, n_classes)
+            model = model.to(device)
+    except Exception:
+        pass
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=args.base_lr, momentum=0.9)
+
+    train_loader, val_loader, test_loader = get_dataloaders(args.data_dir, batch_size=args.batch_size)
+
+    for epoch in range(1, args.epochs + 1):
+        if epoch <= args.collection_start:
+            # exploration phase: cyclic lr
+            lr = adjust_learning_rate_cyclic(optimizer, args.base_lr, args.max_lr, epoch, args.cycle_length)
+        else:
+            # fixed lr during collection
+            for pg in optimizer.param_groups:
+                pg['lr'] = args.base_lr
+            lr = args.base_lr
+
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss, val_acc = eval_model(model, val_loader, criterion, device)
+
+        print(f"Epoch {epoch}/{args.epochs} | lr={lr:.6f} | train_acc={train_acc:.4f} | val_acc={val_acc:.4f}")
+
+        # Snapshot collection during collection phase
+        if epoch >= args.collection_start and ((epoch - args.collection_start) % args.snap_interval == 0):
+            snap_path = os.path.join(args.save_dir, f"snapshot_epoch_{epoch}.pth")
+            torch.save(model.state_dict(), snap_path)
+            print(f"Saved snapshot {snap_path}")
+
+    # Save final model
+    final_path = os.path.join(args.save_dir, 'final_model.pth')
+    torch.save(model.state_dict(), final_path)
+    print(f"Saved final model to {final_path}")
+
+
+if __name__ == '__main__':
+    main()
     
     base_model = base_model.to(device)
     
