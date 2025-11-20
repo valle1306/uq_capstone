@@ -5,9 +5,15 @@ data/*
 runs/
 logs/
 
-# Thesis draft (work in progress, too large)
+# Thesis and docs (local working files, not production)
 thesis_draft.md
 *_draft.md
+thesis_updates/
+docs/
+
+# Results and presentation (local outputs)
+results/
+presentation/
 
 # BraTS datasets (large medical imaging data)
 BraTS2020_TrainingData/
