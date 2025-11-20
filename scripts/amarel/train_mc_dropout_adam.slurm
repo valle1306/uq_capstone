@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=dropout_adam
-#SBATCH --output=logs/dropout_adam_%j.log
+#SBATCH --output=logs/dropout_adam_%j.out
 #SBATCH --error=logs/dropout_adam_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
@@ -41,12 +41,11 @@ echo "========================================"
 
 # Run training
 python src/train_mc_dropout_adam.py \
-    --data_dir data/chest_xray \
     --batch_size 32 \
     --num_workers 4 \
     --model resnet50 \
     --pretrained \
-    --dropout_rate 0.2 \
+    --dropout 0.2 \
     --epochs 50 \
     --lr 0.0001 \
     --lr_final 0.00005 \

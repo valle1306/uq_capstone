@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ensemble_adam
-#SBATCH --output=logs/ensemble_adam_%j.log
+#SBATCH --output=logs/ensemble_adam_%j.out
 #SBATCH --error=logs/ensemble_adam_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
@@ -45,7 +45,6 @@ echo "========================================"
 
 # Run training for this ensemble member
 python src/train_ensemble_adam.py \
-    --data_dir data/chest_xray \
     --batch_size 32 \
     --num_workers 4 \
     --model resnet50 \

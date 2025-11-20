@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=swag_adam
-#SBATCH --output=logs/swag_adam_%j.log
+#SBATCH --output=logs/swag_adam_%j.out
 #SBATCH --error=logs/swag_adam_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
@@ -41,7 +41,6 @@ echo "========================================"
 
 # Run training
 python src/train_swag_adam.py \
-    --data_dir data/chest_xray \
     --batch_size 32 \
     --num_workers 4 \
     --model resnet50 \
