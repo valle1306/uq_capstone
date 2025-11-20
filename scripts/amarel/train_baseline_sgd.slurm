@@ -19,9 +19,8 @@ echo "Node: $SLURM_NODELIST"
 echo "Start time: $(date)"
 echo "========================================="
 
-# Load modules and activate conda
-module purge
-module load conda
+# Activate conda environment
+source ~/.bashrc
 conda activate uq_capstone
 
 # Navigate to project directory
