@@ -32,7 +32,7 @@ This project explores uncertainty quantification in medical imaging through two 
 3. **Deep Ensemble** - Multiple independent models
 4. **SWAG** - Stochastic Weight Averaging-Gaussian
 
-### Classification Methods (NEW)
+### Classification Methods 
 
 1. **Baseline** - Standard ResNet-18 classifier
 2. **MC Dropout** - Monte Carlo Dropout for uncertainty
