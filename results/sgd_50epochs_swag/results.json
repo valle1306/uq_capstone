@@ -1,0 +1,10 @@
+{
+  "sgd_test_acc": 84.77564102564102,
+  "sgd_test_loss": 1.8199403903136278,
+  "swag_mean_acc": 84.4551282051282,
+  "swag_mean_loss": 1.899259696567067,
+  "swag_ensemble_acc": 84.61538553237915,
+  "swag_n_models": 23,
+  "best_sgd_acc": 89.42307692307692,
+  "best_swag_acc": 87.98076923076923
+}

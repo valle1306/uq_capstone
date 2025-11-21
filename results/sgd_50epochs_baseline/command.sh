@@ -1,0 +1,1 @@
+src/train_baseline_sgd.py --dataset chest_xray --data_dir data/chest_xray --arch resnet18 --pretrained --epochs 50 --batch_size 32 --num_workers 4 --lr_init 0.01 --swa_lr 0.005 --swa_start 27 --momentum 0.9 --wd 1e-4 --output_dir runs/classification/baseline_sgd --device cuda --seed 1

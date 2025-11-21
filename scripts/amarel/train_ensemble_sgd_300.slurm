@@ -53,7 +53,7 @@ python src/train_ensemble_sgd_300.py \
     --pretrained \
     --member_id $SLURM_ARRAY_TASK_ID \
     --epochs 300 \
-    --lr 0.001 \
+    --lr 0.01 \
     --weight_decay 1e-4 \
     --scheduler cosine \
     --output_dir results/ensemble_sgd_300 \

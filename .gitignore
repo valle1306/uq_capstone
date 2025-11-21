@@ -5,15 +5,25 @@ data/*
 runs/
 logs/
 
-# Thesis and docs (local working files, not production)
+# Thesis and docs (NEVER commit thesis drafts - private/confidential)
 thesis_draft.md
+thesis_draft.txt
 *_draft.md
+*_draft.txt
 thesis_updates/
-docs/
+extended_work/
+archive/
+conformal-risk/
 
-# Results and presentation (local outputs)
-results/
+# Presentation files
+*.pptx
+*.ppt
+
+# Presentation folder
 presentation/
+
+# PowerShell scripts (local automation)
+*.ps1
 
 # BraTS datasets (large medical imaging data)
 BraTS2020_TrainingData/

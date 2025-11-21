@@ -49,7 +49,7 @@ python src/train_mc_dropout_sgd_300.py \
     --pretrained \
     --dropout_rate 0.3 \
     --epochs 300 \
-    --lr 0.001 \
+    --lr 0.01 \
     --weight_decay 1e-4 \
     --scheduler cosine \
     --output_dir results/mc_dropout_sgd_300 \

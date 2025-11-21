@@ -1,0 +1,18 @@
+{
+  "dataset": "chest_xray",
+  "data_dir": "data/chest_xray",
+  "img_size": 224,
+  "epochs": 50,
+  "batch_size": 32,
+  "lr": 0.01,
+  "weight_decay": 0.0001,
+  "scheduler": "cosine",
+  "arch": "resnet18",
+  "pretrained": true,
+  "dropout_rate": 0.2,
+  "output_dir": "runs/classification/mc_dropout_sgd",
+  "save_freq": 10,
+  "device": "cuda",
+  "num_workers": 4,
+  "seed": 1
+}

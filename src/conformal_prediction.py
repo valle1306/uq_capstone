@@ -42,9 +42,24 @@ def load_model(model_path, arch='resnet18', num_classes=2, device='cuda'):
     # Load weights
     checkpoint = torch.load(model_path, map_location=device)
     if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
+        state_dict = checkpoint['model_state_dict']
     else:
-        model.load_state_dict(checkpoint)
+        state_dict = checkpoint
+    
+    # Handle MC Dropout wrapper (base_model. prefix)
+    if any(k.startswith('base_model.') for k in state_dict.keys()):
+        state_dict = {k.replace('base_model.', ''): v for k, v in state_dict.items()}
+    
+    # Handle MC Dropout Sequential FC layer (fc.0 = Dropout, fc.1 = Linear)
+    # Map fc.1.weight -> fc.weight and fc.1.bias -> fc.bias
+    if 'fc.1.weight' in state_dict and 'fc.1.bias' in state_dict:
+        state_dict['fc.weight'] = state_dict.pop('fc.1.weight')
+        state_dict['fc.bias'] = state_dict.pop('fc.1.bias')
+        # Remove dropout layer if present
+        state_dict.pop('fc.0.weight', None)
+        state_dict.pop('fc.0.bias', None)
+    
+    model.load_state_dict(state_dict)
     
     model = model.to(device)
     model.eval()
