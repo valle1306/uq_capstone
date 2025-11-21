@@ -90,17 +90,5 @@ Primary documentation is in `thesis_draft.md`, which includes:
 - Implementation details and pitfalls
 - Conformal prediction calibration
 
-## Citation
-
-```
-Phan Nguyen Huong Le
-"Uncertainty Quantification for Medical Image Classification: 
- A Comparative Study with Conformal Risk Control"
-Advisor: Gemma Moran
-Rutgers University
-November 2025
-```
-
-## License
 
 This project is for academic research purposes.
